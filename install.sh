@@ -95,8 +95,9 @@ for ((SECOND=0; SECOND<READY_TIMEOUT; SECOND++)); do
         exit 1
     fi
 
-    if journalctl -u "$JELLYFIN_SERVICE" --since "@$START_EPOCH" --no-pager -o cat 2>/dev/null |
-       grep -q 'Startup complete'; then
+    CURRENT_LOG="$(journalctl -u "$JELLYFIN_SERVICE" --since "@$START_EPOCH" --no-pager -o cat 2>/dev/null || true)"
+
+    if grep -q 'Startup complete' <<<"$CURRENT_LOG"; then
         READY=1
         break
     fi
