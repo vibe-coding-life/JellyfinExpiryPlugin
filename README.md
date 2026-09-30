@@ -25,6 +25,27 @@ It adds **Schedule expiry / Cancel expiry** to movie three-dot menus, supports p
 - Background expiry processing every five minutes.
 - Self-healing Jellyfin Web hook for supported Linux/systemd installations.
 
+
+## Screenshots
+
+### Expiry banners in the movie library
+
+Scheduled movies show a clear countdown directly on their posters.
+
+![Jellyfin movie posters showing expiry countdown banners](docs/screenshots/poster-banners.png)
+
+### Schedule expiry from the movie menu
+
+Administrators can schedule or cancel expiry directly from a movie's three-dot menu.
+
+![Jellyfin movie menu with Schedule expiry option](docs/screenshots/movie-menu.png)
+
+### Settings and scheduled queue
+
+The plugin page provides expiry defaults, deletion behaviour, manual scheduling, and the scheduled-movie queue.
+
+![Jellyfin Expiry settings and scheduled movie queue](docs/screenshots/settings-page.png)
+
 ## Safety first
 
 Jellyfin Expiry is capable of deleting media files.
