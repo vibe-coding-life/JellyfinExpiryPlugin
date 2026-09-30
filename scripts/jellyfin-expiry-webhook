@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""Ensure Jellyfin Web loads the Jellyfin Expiry web integration.
+
+This helper is intentionally fail-open: a Jellyfin Web layout change must not
+prevent Jellyfin itself from starting. Errors are printed and the helper exits
+successfully so the server can continue without the enhanced web UI.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+WEB = Path(os.environ.get("JELLYFIN_WEB_DIR", "/usr/share/jellyfin/web"))
+BACKUP_DIR = Path(os.environ.get("JELLYFIN_EXPIRY_BACKUP_DIR", "/var/backups/jellyfin-expiry"))
+INDEX = WEB / "index.html"
+CONFIG = WEB / "config.json"
+LOADER = '<script src="../JellyfinExpiry/WebPlugin.js"></script>'
+PLUGIN = "JellyfinExpiryWebPlugin"
+
+
+def stamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+
+
+def backup(path: Path) -> None:
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    target = BACKUP_DIR / f"{path.name}.{stamp()}.bak"
+    shutil.copy2(path, target)
+    print(f"JellyfinExpiry: backed up {path} -> {target}")
+
+
+def patch_index() -> None:
+    if not INDEX.is_file():
+        print(f"JellyfinExpiry: warning: {INDEX} not found; web loader not patched")
+        return
+
+    html = INDEX.read_text(encoding="utf-8")
+    if LOADER in html:
+        print("JellyfinExpiry: web loader already present")
+        return
+
+    if "</head>" not in html:
+        print("JellyfinExpiry: warning: </head> not found; web loader not patched")
+        return
+
+    backup(INDEX)
+    html = html.replace("</head>", f"    {LOADER}\n</head>", 1)
+    INDEX.write_text(html, encoding="utf-8")
+    print("JellyfinExpiry: restored web loader")
+
+
+def patch_config() -> None:
+    if not CONFIG.is_file():
+        print(f"JellyfinExpiry: warning: {CONFIG} not found; web plugin not registered")
+        return
+
+    try:
+        data = json.loads(CONFIG.read_text(encoding="utf-8"))
+    except Exception as exc:  # fail-open by design
+        print(f"JellyfinExpiry: warning: unable to parse {CONFIG}: {exc}")
+        return
+
+    plugins = data.get("plugins")
+    if not isinstance(plugins, list):
+        print("JellyfinExpiry: warning: config.json has no compatible plugins array")
+        return
+
+    if PLUGIN in plugins:
+        print("JellyfinExpiry: plugin config already present")
+        return
+
+    backup(CONFIG)
+    plugins.append(PLUGIN)
+    CONFIG.write_text(json.dumps(data, indent=4) + "\n", encoding="utf-8")
+    print("JellyfinExpiry: restored plugin config")
+
+
+def main() -> int:
+    try:
+        patch_index()
+        patch_config()
+    except Exception as exc:  # never block Jellyfin startup
+        print(f"JellyfinExpiry: warning: web hook failed: {exc}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
