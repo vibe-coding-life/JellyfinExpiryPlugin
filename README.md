@@ -4,7 +4,7 @@ Jellyfin Expiry is an administrator-focused Jellyfin plugin for scheduling autom
 
 It adds **Schedule expiry / Cancel expiry** to movie three-dot menus, supports preset and custom expiry periods, keeps a scheduled-movie queue in the plugin settings page, and displays an **Expires in X days** banner on scheduled movie posters.
 
-> **Release status:** v1.0.0.0 release candidate has passed a clean packaged-install test on Jellyfin Server/Web 12.1.0 using the Debian/Ubuntu-style Linux package layout with systemd.
+> **Latest release:** [v1.0.0.0](https://github.com/vibe-coding-life/JellyfinExpiryPlugin/releases/tag/v1.0.0.0), tested on Jellyfin Server/Web 12.1.0 using the Debian/Ubuntu-style Linux package layout with systemd.
 
 ## Features
 
@@ -60,14 +60,16 @@ The server-side plugin is more portable than the current web integration. The mo
 
 ## Installation
 
-A packaged v1.0.0.0 release is not published yet. When it is available, the recommended Linux installation will be:
+The recommended installation is the complete Linux package from the [v1.0.0.0 release](https://github.com/vibe-coding-life/JellyfinExpiryPlugin/releases/tag/v1.0.0.0).
 
-1. Download `JellyfinExpiry-linux_1.0.0.0.tar.gz` from the GitHub release.
+1. Download `JellyfinExpiry-linux_1.0.0.0.tar.gz`.
 2. Extract it.
 3. Review the included scripts.
 4. Run:
 
    `sudo ./install.sh`
+
+The standalone `JellyfinExpiry-plugin_1.0.0.0.zip` contains only the plugin DLL. It does **not** install the Jellyfin Web loader/systemd integration required for the movie-menu actions and poster banners.
 
 The installer will:
 
@@ -76,7 +78,7 @@ The installer will:
 3. install the plugin DLL;
 4. install the web-loader helper;
 5. add a systemd pre-start hook so Jellyfin Web updates can restore the loader automatically;
-6. restart Jellyfin and verify the service is active.
+6. restart Jellyfin, wait for startup to complete, and verify that Jellyfin Expiry loaded successfully.
 
 After installation, open **Dashboard → Plugins → Jellyfin Expiry** and keep **Dry Run** enabled while testing.
 
@@ -153,7 +155,7 @@ Release packaging can then be generated with:
 - [x] Linux/systemd self-healing web hook
 - [x] Linux installer/uninstaller scaffolding
 - [x] Final v1.0.0.0 clean-install test
-- [ ] GitHub v1.0.0.0 release
+- [x] GitHub v1.0.0.0 release
 - [ ] Jellyfin repository/catalog support once the web integration can be installed completely through that path
 - [ ] Docker installation support
 - [ ] Windows installation support
