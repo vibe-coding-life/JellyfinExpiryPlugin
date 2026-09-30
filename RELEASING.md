@@ -14,12 +14,17 @@
 
    `./scripts/package-release.sh 1.0.0.0`
 
-7. Record the target Jellyfin ABI and update `manifest.json`.
-8. Create the GitHub release and upload:
-   - `JellyfinExpiry-plugin_1.0.0.0.zip`
-   - `JellyfinExpiry-linux_1.0.0.0.tar.gz`
-   - `SHA256SUMS`
-9. Verify the published checksums from a fresh download.
-10. Test a clean install using the published Linux archive before marking the release stable.
+7. Verify `SHA256SUMS` and run the release privacy/secret audit.
+8. Test the packaged Linux installer on the supported Jellyfin version and confirm Jellyfin reaches `Startup complete`.
+9. Confirm the plugin loads, the embedded web resource returns HTTP 200, and the movie-menu/banner UI still works after a hard browser refresh.
+10. Create the GitHub release and upload:
+    - `JellyfinExpiry-plugin_1.0.0.0.zip`
+    - `JellyfinExpiry-linux_1.0.0.0.tar.gz`
+    - `SHA256SUMS`
+11. Verify the published checksums from a fresh download.
 
-The Jellyfin repository manifest checksum is the MD5 of the plugin ZIP, matching the format used by Jellyfin plugin repositories.
+## Jellyfin catalog note
+
+Do not publish the plugin-only ZIP as a complete v1.0.0 installation path through a Jellyfin repository manifest yet. The current movie-menu and poster-banner integration also requires the Linux web-loader/systemd hook, which Jellyfin's normal plugin catalog installation does not install.
+
+For v1.0.0.0, the supported full installation path is the packaged Linux archive and `install.sh`.
