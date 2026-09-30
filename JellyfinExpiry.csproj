@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>JellyfinExpiry</AssemblyName>
+    <RootNamespace>JellyfinExpiry</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+
+    <EmbeddedResource Include="ConfigurationPage.html">
+      <LogicalName>JellyfinExpiry.ConfigurationPage.html</LogicalName>
+    </EmbeddedResource>
+
+    <EmbeddedResource Include="JellyfinExpiry-plugin.js">
+      <LogicalName>JellyfinExpiry.WebPlugin.js</LogicalName>
+    </EmbeddedResource>
+
+    <Content Include="ConfigurationPage.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+
+    <Reference Include="Jellyfin.Controller">
+      <HintPath>/usr/lib/jellyfin/bin/Jellyfin.Controller.dll</HintPath>
+    </Reference>
+
+    <Reference Include="MediaBrowser.Common">
+      <HintPath>/usr/lib/jellyfin/bin/MediaBrowser.Common.dll</HintPath>
+    </Reference>
+
+    <Reference Include="Jellyfin.Database.Implementations">
+      <HintPath>/usr/lib/jellyfin/bin/Jellyfin.Database.Implementations.dll</HintPath>
+    </Reference>
+
+
+    <Reference Include="MediaBrowser.Controller">
+      <HintPath>/usr/lib/jellyfin/bin/MediaBrowser.Controller.dll</HintPath>
+    </Reference>
+
+    <Reference Include="MediaBrowser.Model">
+      <HintPath>/usr/lib/jellyfin/bin/MediaBrowser.Model.dll</HintPath>
+    </Reference>
+
+    <Reference Include="Microsoft.Extensions.DependencyInjection.Abstractions">
+      <HintPath>/usr/lib/jellyfin/bin/Microsoft.Extensions.DependencyInjection.Abstractions.dll</HintPath>
+    </Reference>
+
+    <Reference Include="Microsoft.Extensions.Hosting.Abstractions">
+      <HintPath>/usr/lib/jellyfin/bin/Microsoft.Extensions.Hosting.Abstractions.dll</HintPath>
+    </Reference>
+
+    <Reference Include="Microsoft.Extensions.Logging.Abstractions">
+      <HintPath>/usr/lib/jellyfin/bin/Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+    </Reference>
+
+    <Reference Include="Microsoft.Data.Sqlite">
+      <HintPath>/usr/lib/jellyfin/bin/Microsoft.Data.Sqlite.dll</HintPath>
+    </Reference>
+
+  </ItemGroup>
+
+</Project>
