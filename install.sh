@@ -11,6 +11,7 @@ JELLYFIN_SERVICE="${JELLYFIN_SERVICE:-jellyfin}"
 JELLYFIN_WEB_DIR="${JELLYFIN_WEB_DIR:-/usr/share/jellyfin/web}"
 JELLYFIN_PLUGIN_DIR="${JELLYFIN_PLUGIN_DIR:-/var/lib/jellyfin/plugins}"
 BACKUP_DIR="${JELLYFIN_EXPIRY_BACKUP_DIR:-/var/backups/jellyfin-expiry}"
+READY_TIMEOUT="${JELLYFIN_EXPIRY_READY_TIMEOUT:-60}"
 INSTALL_DIR="$JELLYFIN_PLUGIN_DIR/${PLUGIN_NAME}_${PLUGIN_VERSION}"
 ENV_FILE="/etc/default/jellyfin-expiry"
 DROPIN_DIR="/etc/systemd/system/${JELLYFIN_SERVICE}.service.d"
@@ -24,7 +25,9 @@ fail() {
 
 [[ ${EUID:-$(id -u)} -eq 0 ]] || fail "run this installer as root"
 command -v systemctl >/dev/null 2>&1 || fail "systemd is required by the v1.0.0 Linux installer"
+command -v journalctl >/dev/null 2>&1 || fail "journalctl is required by the v1.0.0 Linux installer"
 command -v python3 >/dev/null 2>&1 || fail "python3 is required"
+[[ "$READY_TIMEOUT" =~ ^[0-9]+$ ]] && (( READY_TIMEOUT >= 5 )) || fail "JELLYFIN_EXPIRY_READY_TIMEOUT must be an integer of at least 5 seconds"
 [[ -f "$DLL_SOURCE" ]] || fail "JellyfinExpiry.dll must be beside install.sh"
 [[ -f "$WEBHOOK_SOURCE" ]] || fail "scripts/jellyfin-expiry-webhook is missing"
 [[ -f "$JELLYFIN_WEB_DIR/index.html" ]] || fail "Jellyfin Web index.html not found at $JELLYFIN_WEB_DIR"
@@ -77,12 +80,48 @@ JELLYFIN_EXPIRY_BACKUP_DIR="$BACKUP_DIR" \
     "$WEBHOOK_TARGET"
 
 systemctl daemon-reload
+
+START_EPOCH="$(date +%s)"
 systemctl restart "$JELLYFIN_SERVICE"
-sleep 2
+
+echo "Waiting for Jellyfin to complete startup..."
+
+READY=0
+for ((SECOND=0; SECOND<READY_TIMEOUT; SECOND++)); do
+    if systemctl is-failed --quiet "$JELLYFIN_SERVICE"; then
+        echo "Jellyfin entered a failed state after installation." >&2
+        systemctl status "$JELLYFIN_SERVICE" --no-pager -l >&2 || true
+        journalctl -u "$JELLYFIN_SERVICE" --since "@$START_EPOCH" --no-pager -n 100 >&2 || true
+        exit 1
+    fi
+
+    if journalctl -u "$JELLYFIN_SERVICE" --since "@$START_EPOCH" --no-pager -o cat 2>/dev/null |
+       grep -q 'Startup complete'; then
+        READY=1
+        break
+    fi
+
+    sleep 1
+done
+
+if (( READY != 1 )); then
+    echo "Jellyfin did not report startup completion within ${READY_TIMEOUT}s." >&2
+    systemctl status "$JELLYFIN_SERVICE" --no-pager -l >&2 || true
+    journalctl -u "$JELLYFIN_SERVICE" --since "@$START_EPOCH" --no-pager -n 100 >&2 || true
+    exit 1
+fi
 
 if ! systemctl is-active --quiet "$JELLYFIN_SERVICE"; then
-    echo "Jellyfin failed to become active after installation." >&2
+    echo "Jellyfin is not active after startup." >&2
     systemctl status "$JELLYFIN_SERVICE" --no-pager -l >&2 || true
+    exit 1
+fi
+
+STARTUP_LOG="$(journalctl -u "$JELLYFIN_SERVICE" --since "@$START_EPOCH" --no-pager -o cat 2>/dev/null || true)"
+
+if ! grep -q 'Loaded plugin: Jellyfin Expiry' <<<"$STARTUP_LOG"; then
+    echo "Jellyfin started, but Jellyfin Expiry was not found in the startup log." >&2
+    echo "$STARTUP_LOG" >&2
     exit 1
 fi
 
