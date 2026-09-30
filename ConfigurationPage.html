@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head><title>Jellyfin Expiry</title><style>.expiryMovieRow { margin: 1em 0; padding: 0.5em 0; border-bottom: 1px solid #777; }
+
+.expiryScheduleBox {
+    width: 300px !important;
+    max-width: 300px !important;
+}
+
+.expiryScheduleBox .selectContainer {
+    width: 300px !important;
+    max-width: 300px !important;
+    flex: 0 0 300px !important;
+}
+
+.expiryScheduleBox .emby-select {
+    width: 300px !important;
+    max-width: 300px !important;
+}
+
+#expiryScheduler .selectContainer {
+    width: 300px;
+    max-width: 300px;
+}
+
+#expiryScheduler .selectContainer select.emby-select {
+    width: 300px;
+    max-width: 300px;
+}
+
+#expirySchedulePeriod {
+    max-width: 300px;
+}
+
+#expiryScheduler .selectContainer {
+    max-width: 300px;
+}</style></head>
+<body>
+    <div id="jellyfinExpiryPage" data-role="page"
+         class="page type-interior pluginConfigurationPage"
+         data-require="emby-input,emby-button,emby-checkbox,emby-select">
+        <div data-role="content">
+            <div class="content-primary">
+                <h1>Jellyfin Expiry</h1>
+                <p>Administrator settings for temporary movies.</p>
+                <p>Only movies explicitly scheduled for expiry are processed. Existing movies are not automatically scheduled.</p>
+                <p id="expiryStatus" role="status" aria-live="polite">Loading settings…</p>
+                <form id="expiryForm" hidden>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="expiryEnabled" />
+                        <span>Enable expiry system</span>
+                    </label>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="expiryDryRun" />
+                        <span>Dry run: log what would be removed without deleting or completing expiry entries</span>
+                    </label>
+                    <div class="selectContainer">
+                        <select is="emby-select" id="expiryPeriod" label="Default expiry period">
+                            <option value="1">1 day</option>
+                            <option value="7">7 days</option>
+                            <option value="14">14 days</option>
+                            <option value="30">30 days</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div id="expiryCustomContainer" class="inputContainer" hidden>
+                        <input is="emby-input" id="expiryCustomDays" type="number"
+                               min="1" max="2147483647" step="1" label="Custom expiry (days)" />
+                    </div>
+                    <p class="fieldDescription">The default is suggested when scheduling a movie. Changing it does not change existing expiry dates.</p>
+                    <div class="selectContainer">
+                        <select is="emby-select" id="expiryDeleteMode" label="When a movie expires">
+                            <option value="library">Delete from Jellyfin only — keep files</option>
+                            <option value="files">Delete files permanently</option>
+                        </select>
+                    </div>
+                    <p class="fieldDescription">Keeping files on disk may allow a later library scan to add the movie again. Permanent deletion uses Jellyfin's deletion process and may also remove associated files.</p>
+                    <p class="fieldDescription">The worker checks every five minutes. Dry run entries remain pending and can be processed after dry run is turned off.</p>
+                    <button is="emby-button" id="expirySave" type="submit" class="raised button-submit block"><span>Save</span></button>
+                </form>
+                <section id="expiryScheduler" hidden>
+                    <h2>Schedule a movie</h2>
+                    <p>Choose a movie and explicitly schedule its expiry. Scheduling again replaces that movie's previous date. Unscheduled movies stay untouched.</p>
+                    <p>The period starts when you click Schedule expiry. Dates below use your browser's local time. Scheduling is available while the expiry system is disabled; processing starts only when it is enabled.</p>
+                    <div class="selectContainer" style="width:100%; max-width:800px;">
+                        <select is="emby-select" id="expirySchedulePeriod" label="Delete this movie in">
+                            <option value="1">24 hours</option>
+                            <option value="7">7 days</option>
+                            <option value="14">14 days</option>
+                            <option value="30">30 days</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div id="expiryScheduleCustomContainer" class="inputContainer" style="width:100%; max-width:800px;" hidden>
+                        <input is="emby-input" id="expiryScheduleCustom" type="number" min="1" max="2147483647" step="1" label="Delete in (days)" />
+                    </div>
+                    <form id="expirySearchForm">
+                        <div class="inputContainer">
+                            <input is="emby-input" id="expirySearchText" type="search" required minlength="2" label="Movie title" />
+                        </div>
+                        <button is="emby-button" id="expirySearchButton" type="submit" class="raised button-submit"><span>Search movies</span></button>
+                    </form>
+                    <p id="expiryScheduleStatus" role="status" aria-live="polite"></p>
+                    <div id="expirySearchResults"></div>
+                    <h2>Scheduled movies</h2>
+                    <button is="emby-button" id="expiryRefresh" type="button" class="raised"><span>Refresh queue</span></button>
+                    <div id="expiryScheduleList" aria-live="polite"></div>
+                </section>
+            </div>
+        </div>
+        <script>
+        (function () {
+            'use strict';
+            var pluginId = '7e2d9c5e-4a7f-4c18-9f1d-9f5b5d9b4a11';
+            var page = document.querySelector('#jellyfinExpiryPage');
+            var form = page.querySelector('#expiryForm');
+            var status = page.querySelector('#expiryStatus');
+            var save = page.querySelector('#expirySave');
+            var period = page.querySelector('#expiryPeriod');
+            var customDays = page.querySelector('#expiryCustomDays');
+            var loaded = false;
+
+            function updateCustom() {
+                var custom = period.value === 'custom';
+                page.querySelector('#expiryCustomContainer').hidden = !custom;
+                customDays.disabled = !custom;
+                customDays.required = custom;
+            }
+
+            function readDays() {
+                var value = Number(period.value === 'custom' ? customDays.value : period.value);
+                if (!Number.isInteger(value) || value < 1 || value > 2147483647) {
+                    throw new Error('Enter a positive whole number of days.');
+                }
+                return value;
+            }
+
+            var scheduler = page.querySelector('#expiryScheduler');
+            var scheduleStatus = page.querySelector('#expiryScheduleStatus');
+            var searchForm = page.querySelector('#expirySearchForm');
+            var searchInput = page.querySelector('#expirySearchText');
+            var searchButton = page.querySelector('#expirySearchButton');
+            var searchResults = page.querySelector('#expirySearchResults');
+            var scheduleList = page.querySelector('#expiryScheduleList');
+            var schedulePeriod = page.querySelector('#expirySchedulePeriod');
+            var scheduleCustom = page.querySelector('#expiryScheduleCustom');
+            var refreshButton = page.querySelector('#expiryRefresh');
+            var mutationBusy = false;
+            var searchGeneration = 0;
+
+            function scheduleCustomChanged() {
+                var custom = schedulePeriod.value === 'custom';
+                page.querySelector('#expiryScheduleCustomContainer').hidden = !custom;
+                scheduleCustom.disabled = !custom;
+                scheduleCustom.required = custom;
+            }
+            schedulePeriod.addEventListener('change', scheduleCustomChanged);
+
+            function schedulingLoaded(days) {
+                scheduler.hidden = false;
+                schedulePeriod.value = [1, 7, 14, 30].indexOf(days) >= 0 ? String(days) : 'custom';
+                scheduleCustom.value = String(days);
+                scheduleCustomChanged();
+                scheduleStatus.textContent = '';
+                refreshSchedules();
+            }
+
+            function request(path, method, body) {
+                var options = {url: ApiClient.getUrl('JellyfinExpiry/' + path), type: method};
+                if (method === 'GET' || method === 'POST') options.dataType = 'json';
+                if (body !== undefined) {
+                    options.contentType = 'application/json';
+                    options.data = JSON.stringify(body);
+                }
+                return ApiClient.ajax(options);
+            }
+
+            function movieText(movie) {
+                return movie.Name + (movie.ProductionYear ? ' (' + movie.ProductionYear + ')' : '');
+            }
+
+            function addButton(parent, label, handler) {
+                var button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'raised emby-button';
+                button.textContent = label;
+                button.addEventListener('click', function () {
+                    if (!loaded || mutationBusy) return;
+                    handler(button);
+                });
+                parent.appendChild(button);
+            }
+
+            function refreshSchedules() {
+                refreshButton.disabled = true;
+                return request('Schedules', 'GET').then(function (entries) {
+                    scheduleList.textContent = '';
+                    if (!entries.length) {
+                        scheduleList.textContent = 'No movies are scheduled for expiry.';
+                        return;
+                    }
+                    entries.forEach(function (entry) {
+                        var row = document.createElement('div');
+                        row.className = 'expiryMovieRow';
+                        var label = document.createElement('p');
+                        label.textContent = entry.Name + ' — ' + new Date(entry.ExpiresAtUtc).toLocaleString()
+                            + (entry.IsDue ? ' — due (pending processing)' : '');
+                        row.appendChild(label);
+                        addButton(row, 'Cancel expiry', function (button) {
+                            mutationBusy = true;
+                            button.disabled = true;
+                            request('Movies/' + encodeURIComponent(entry.ItemId) + '/Schedule', 'DELETE')
+                                .then(function () {
+                                    scheduleStatus.textContent = 'Expiry cancelled for ' + entry.Name + '.';
+                                    return refreshSchedules();
+                                }).catch(function () {
+                                    scheduleStatus.textContent = 'Unable to cancel expiry. Refresh the queue and check your administrator session.';
+                                }).finally(function () { mutationBusy = false; button.disabled = false; });
+                        });
+                        scheduleList.appendChild(row);
+                    });
+                }).catch(function () {
+                    scheduleList.textContent = 'Unable to load expiry queue. Check your administrator session and server logs.';
+                }).finally(function () { refreshButton.disabled = false; });
+            }
+
+            refreshButton.addEventListener('click', function () {
+                if (loaded) refreshSchedules();
+            });
+
+            function scheduleMovie(movie, button) {
+                var days = Number(schedulePeriod.value === 'custom' ? scheduleCustom.value : schedulePeriod.value);
+                if (!Number.isInteger(days) || days < 1 || days > 2147483647) {
+                    scheduleStatus.textContent = 'Enter a positive whole number of days.';
+                    return;
+                }
+                mutationBusy = true;
+                button.disabled = true;
+                request('Movies/' + encodeURIComponent(movie.Id) + '/Schedule', 'POST', {Days: days})
+                    .then(function (entry) {
+                        scheduleStatus.textContent = 'Scheduled ' + entry.Name + ' for ' + new Date(entry.ExpiresAtUtc).toLocaleString() + '.';
+                        return refreshSchedules();
+                    }).catch(function () {
+                        scheduleStatus.textContent = 'Unable to schedule this movie. Check its local file path, the expiry period, and your administrator session.';
+                    }).finally(function () { mutationBusy = false; button.disabled = false; });
+            }
+
+            searchForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                if (!loaded || searchButton.disabled) return;
+                var query = searchInput.value.trim();
+                if (query.length < 2) {
+                    scheduleStatus.textContent = 'Enter at least two characters of the movie title.';
+                    return;
+                }
+                var generation = ++searchGeneration;
+                searchButton.disabled = true;
+                searchResults.textContent = 'Searching…';
+                // Use Jellyfin's existing movie search API. Searching never creates a schedule.
+                ApiClient.getItems(ApiClient.getCurrentUserId(), {
+                    IncludeItemTypes: 'Movie', Recursive: true, SearchTerm: query,
+                    Limit: 30
+                }).then(function (result) {
+                    if (generation !== searchGeneration || !loaded) return;
+                    searchResults.textContent = '';
+                    var movies = result.Items || [];
+                    if (!movies.length) searchResults.textContent = 'No matching movies found.';
+                    movies.forEach(function (movie) {
+                        var row = document.createElement('div');
+                        row.className = 'expiryMovieRow';
+                        var title = document.createElement('p');
+                        title.textContent = movieText(movie);
+                        row.appendChild(title);
+                        addButton(row, 'Schedule expiry', function (button) { scheduleMovie(movie, button); });
+                        searchResults.appendChild(row);
+                    });
+                    if (result.TotalRecordCount > movies.length) {
+                        var note = document.createElement('p');
+                        note.textContent = 'Showing the first 30 matches. Use a more specific title to narrow the search.';
+                        searchResults.appendChild(note);
+                    }
+                }).catch(function () {
+                    if (generation === searchGeneration) searchResults.textContent = 'Unable to search movies. Check your administrator session.';
+                }).finally(function () {
+                    if (generation === searchGeneration) searchButton.disabled = false;
+                });
+            });
+
+            period.addEventListener('change', updateCustom);
+
+            page.addEventListener('pageshow', function () {
+                loaded = false;
+                form.hidden = true;
+                scheduler.hidden = true;
+                searchGeneration++;
+                searchButton.disabled = false;
+                searchResults.textContent = "";
+                save.disabled = true;
+                status.textContent = 'Loading settings…';
+                Dashboard.showLoadingMsg();
+
+                // Jellyfin's native configuration API enforces administrator authorization.
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    page.querySelector('#expiryEnabled').checked = config.Enabled === true;
+                    page.querySelector('#expiryDryRun').checked = config.DryRun !== false;
+                    var days = Number(config.DefaultExpiryDays);
+                    if (!Number.isInteger(days) || days < 1 || days > 2147483647) {
+                        days = 7;
+                    }
+                    period.value = [1, 7, 14, 30].indexOf(days) >= 0 ? String(days) : 'custom';
+                    customDays.value = String(days);
+                    page.querySelector('#expiryDeleteMode').value = config.DeleteFiles === true ? 'files' : 'library';
+                    updateCustom();
+                    loaded = true;
+                    form.hidden = false;
+                    status.textContent = '';
+                    schedulingLoaded(days);
+                }).catch(function () {
+                    status.textContent = 'Unable to load settings. Sign in as a Jellyfin administrator and try again.';
+                }).finally(function () {
+                    save.disabled = !loaded;
+                    Dashboard.hideLoadingMsg();
+                });
+            });
+
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                if (!loaded || save.disabled) {
+                    return;
+                }
+
+                var days;
+                try {
+                    days = readDays();
+                } catch (error) {
+                    status.textContent = error.message;
+                    return;
+                }
+
+                var values = {
+                    Enabled: page.querySelector('#expiryEnabled').checked,
+                    DryRun: page.querySelector('#expiryDryRun').checked,
+                    DefaultExpiryDays: days,
+                    DeleteFiles: page.querySelector('#expiryDeleteMode').value === 'files'
+                };
+
+                save.disabled = true;
+                status.textContent = 'Saving…';
+                Dashboard.showLoadingMsg();
+
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    // Preserve any additional configuration fields managed by Jellyfin.
+                    Object.assign(config, values);
+                    return ApiClient.updatePluginConfiguration(pluginId, config);
+                }).then(function () {
+                    status.textContent = 'Settings saved.';
+                    schedulePeriod.value = [1, 7, 14, 30].indexOf(days) >= 0 ? String(days) : 'custom';
+                    scheduleCustom.value = String(days);
+                    scheduleCustomChanged();
+                }).catch(function () {
+                    status.textContent = 'Unable to save settings. Check your administrator session and server logs.';
+                }).finally(function () {
+                    save.disabled = false;
+                    Dashboard.hideLoadingMsg();
+                });
+            });
+        }());
+        </script>
+    </div>
+</body>
+</html>
