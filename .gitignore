@@ -1,0 +1,14 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.tar.gz
+*.zip
+dist/
+release/
+*.db
+*.db-shm
+*.db-wal
