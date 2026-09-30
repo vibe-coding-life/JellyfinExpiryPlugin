@@ -2,7 +2,7 @@
 
 All notable changes to Jellyfin Expiry will be documented in this file.
 
-## [1.0.0.0] - Unreleased
+## [1.0.0.0] - 2026-09-30
 
 ### Added
 
