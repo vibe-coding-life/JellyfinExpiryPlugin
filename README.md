@@ -4,7 +4,7 @@ Jellyfin Expiry is an administrator-focused Jellyfin plugin for scheduling autom
 
 It adds **Schedule expiry / Cancel expiry** to movie three-dot menus, supports preset and custom expiry periods, keeps a scheduled-movie queue in the plugin settings page, and displays an **Expires in X days** banner on scheduled movie posters.
 
-> **Release status:** v1.0.0.0 is being prepared and tested. The current frontend integration is tested with Jellyfin Web 12.1.0 on the Debian/Ubuntu-style Linux package layout using systemd.
+> **Release status:** v1.0.0.0 release candidate has passed a clean packaged-install test on Jellyfin Server/Web 12.1.0 using the Debian/Ubuntu-style Linux package layout with systemd.
 
 ## Features
 
@@ -152,9 +152,9 @@ Release packaging can then be generated with:
 - [x] Poster expiry banners
 - [x] Linux/systemd self-healing web hook
 - [x] Linux installer/uninstaller scaffolding
-- [ ] Final v1.0.0.0 clean-install test
+- [x] Final v1.0.0.0 clean-install test
 - [ ] GitHub v1.0.0.0 release
-- [ ] Jellyfin repository manifest
+- [ ] Jellyfin repository/catalog support once the web integration can be installed completely through that path
 - [ ] Docker installation support
 - [ ] Windows installation support
 - [ ] Wider Jellyfin version compatibility testing
